@@ -1,0 +1,5 @@
+#title {
+    dock: top;
+    text-align: center;
+    color: #0F0;
+}
