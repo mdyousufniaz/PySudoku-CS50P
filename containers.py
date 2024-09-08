@@ -9,4 +9,4 @@ class MidCenter(Vertical):
             border: round #0F0;
         }
     """
-    BORDER_TITLE = "PySudoku"
+    # BORDER_TITLE = "PySudoku"

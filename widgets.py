@@ -4,12 +4,13 @@ from textual.message import Message
 from datetime import datetime
 
 class CenteredButton(Center):
-    def __init__(self, btn_name: str) -> None:
+    def __init__(self, btn_name: str, btn_id: str | None = None) -> None:
         self.btn_name = btn_name
+        self.btn_id = btn_id
         super().__init__()
 
     def compose(self):
-        yield CustomButton(self.btn_name)
+        yield CustomButton(self.btn_name, id=self.btn_id)
 
 class CustomButton(Static):
     
@@ -29,11 +30,14 @@ class CustomButton(Static):
     """
 
     class Clicked(Message):
-        def __init__(self) -> None:
+        def __init__(self, custom_button) -> None:
+            self.custom_button = custom_button
             super().__init__()
+              # Reference to the button instance (control)
 
-    def on_click(self):
-        self.post_message(self.Clicked())
+    def on_click(self) -> None:
+        # Post the Clicked message with the current instance (`self`) as control
+        self.post_message(self.Clicked(self))
 
 class DigitalClock(Static):
     DEFAULT_CSS = """

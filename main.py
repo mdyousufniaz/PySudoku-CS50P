@@ -1,10 +1,11 @@
 from textual.app import App, ComposeResult
 from textual.widgets import Static
 from textual.containers import Center
+from textual import on
 
 from art import text2art
 
-from widgets import CenteredButton, DigitalClock
+from widgets import CenteredButton, DigitalClock, CustomButton
 from containers import MidCenter
 
 
@@ -12,20 +13,33 @@ class Main(App[None]):
     CSS_PATH = "test.tcss"
 
     def load_choose_difficulty_screen(self) -> None:
-        ...
+        self.inner_center.query(CenteredButton).remove()
+        self.inner_center.mount(
+            CenteredButton('Start Game'),
+            CenteredButton('Back to Home')
+        )
+
+    def load_home_screen(self) -> None:
+        self.inner_center.query().remove()
+        self.inner_center.mount(
+            CenteredButton('New Game', btn_id='new-game'),
+            CenteredButton('Leader Board'),
+            CenteredButton('Quit')
+        )
 
     def compose(self) -> ComposeResult:
-        self.mid_center = MidCenter()
-        with self.mid_center:
+        with MidCenter():
             yield Static(text2art("PySudoku", font='tarty-1'), id='title')
-            yield CenteredButton('New Game')
-            yield CenteredButton('Leader Board')
-            yield CenteredButton("Quit")
+            self.inner_center = Center()
+            yield self.inner_center
             yield DigitalClock()
+
+    def on_mount(self) -> None:
+        self.load_home_screen()
         
-    
-    def on_custom_button_clicked(self):
-        self.app.notify('Hello')
+    @on(CustomButton.Clicked, '#new-game')
+    def handle_new_game(self):
+        self.load_choose_difficulty_screen()
 
 if __name__ == "__main__":
     Main().run()
