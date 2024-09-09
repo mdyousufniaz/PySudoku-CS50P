@@ -5,20 +5,13 @@
 #title {
     dock: top;
     text-align: center;
-    text-style: italic;
 }
 
 Select {
-    color: #0F0;
     width: 30;
-    align: center middle;
 
     SelectCurrent {
-        border: vkey #0F0;
-        color: #0F0;
+        border: tall #0F0;
     }
 
-    SelectOverlay {
-        background: $success-lighten-3 5%;
-    }
 }
