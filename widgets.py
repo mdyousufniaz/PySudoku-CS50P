@@ -171,30 +171,44 @@ class SimpleCounter(Static):
         self.value += 1
         self.counter_display.update(str(self.value))
 
-class Cell(Static, can_focus=True):
-
-    selected = var(False)
+class Cell(Static):
 
     DEFAULT_CSS = """
         Cell {
             height: 1;
             width: 3;
             text-align: center;
-            # background: $success-lighten-3 25%;
+
+            &.Selected {
+                background: $success-lighten-3; 
+            }
         }
 
-        Cell:focus {
-            background: blue; 
-        }
     """
-
-    def on_click(self) -> None:
-        self.post_message(self.Clicked(self))
 
     class Clicked(Message):
         def __init__(self, cell):
             self.cell = cell
             super().__init__()
+
+    selected: var[bool] = var(False, init=False)
+
+    def __init__(self, digit: str, row_index: int, col_index: int) -> None:
+        
+        self.row: int = row_index
+        self.col: int = col_index
+
+        super().__init__(digit)
+
+    def on_click(self) -> None:
+        self.post_message(self.Clicked(self))
+
+    def watch_selected(self):
+        self.app.notify(str(self.selected))
+        if self.selected:
+            self.add_class('Selected')
+        else:
+            self.remove_class('Selected')
 
 class SudokuGrid3X3(Grid, can_focus=True):
 
@@ -206,20 +220,20 @@ class SudokuGrid3X3(Grid, can_focus=True):
             height: 23;
             padding-top: 2;
             padding-left: 1;
-            keyline: thin $secondary;
-            background: $background;
+            keyline: thin $success-darken-3;
+            background: $success-lighten-3 15%;
             grid-gutter: 0 1;
         }
 
         SudokuGrid3X3:focus {
-            border: solid blue;
+            border: vkey green;
         }
 
     """
 
     def compose(self) -> ComposeResult:
         self.cells = [
-            [Cell(str((row * 9 + col) % 10)) for col in range(9)]
+            [Cell(str((row * 9 + col) % 10), row, col) for col in range(9)]
             for row in range(9)
         ]
         for row in self.cells:
@@ -233,11 +247,12 @@ class SudokuGrid3X3(Grid, can_focus=True):
     def on_mount(self) -> None:
         # To track the currently selected cell
         self.selected_cell = None
-        self.selected_row = 0
-        self.selected_col = 0
+
+    def select_cell(self, cell) -> None:
+        cell.selected = True
+        self.selected_cell = cell
 
     def on_cell_clicked(self, event: Cell.Clicked) -> None:
-        self.app.notify('Hello')
         clicked_cell = event.cell
 
         # Reset the previous selected cell's background if any
@@ -245,39 +260,36 @@ class SudokuGrid3X3(Grid, can_focus=True):
             self.selected_cell.selected = False
 
         # Set the new selected cell's background
-        clicked_cell.selected = True
-        self.selected_cell = clicked_cell
-
-        for r in range(9):
-            for c in range(9):
-                if self.cells[r][c] == clicked_cell:
-                    self.selected_row = r
-                    self.selected_col = c
-                    break
+        self.select_cell(clicked_cell)
             
-        # self.focus()
+                
+    def on_key(self, event: Key) -> None:
+        if self.selected_cell:
+            new_row, new_col = self.selected_cell.row, self.selected_cell.col
 
-        @on(DescendantFocus)
-        @on(Key)                
-        def on_key(self, event: Key) -> None:
-        # Handle arrow key navigation
-            if event.key == "up" and self.selected_row > 0:
-                self.move_selection(self.selected_row - 1, self.selected_col)
-            elif event.key == "down" and self.selected_row < 8:
-                self.move_selection(self.selected_row + 1, self.selected_col)
-            elif event.key == "left" and self.selected_col > 0:
-                self.move_selection(self.selected_row, self.selected_col - 1)
-            elif event.key == "right" and self.selected_col < 8:
-                self.move_selection(self.selected_row, self.selected_col + 1)
+            match event.key:
+                case "up":
+                    new_row -= 1
+                case "down":
+                    new_row += 1
+                case "left":
+                    new_col -= 1
+                case "right":
+                    new_col += 1
+                case _:
+                    ...
+            self.move_selection(new_row, new_col)    
+            
 
-    def move_selection(self, new_row: int, new_col: int) -> None:
+
+    def move_selection(self, row: int, col: int) -> None:
         # Deselect the current cell
         if self.selected_cell:
             self.selected_cell.selected = False
 
         # Update the selected cell coordinates
-        self.selected_row, self.selected_col = new_row, new_col
-        self.selected_cell = self.cells[new_row][new_col]
+        row, col = row % 9, col % 9
+        self.selected_cell = self.cells[row][col]
         self.selected_cell.selected = True
 
 class MyApp(App):
