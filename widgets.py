@@ -6,7 +6,7 @@ from textual.message import Message
 from textual.reactive import var
 from textual.timer import Timer
 from textual.app import ComposeResult, App
-from textual import on
+from textual import work
 from textual.events import Key, DescendantFocus
 
 
@@ -180,7 +180,11 @@ class Cell(Static):
             text-align: center;
 
             &.Selected {
-                background: $success-lighten-3; 
+                background: $success-darken-3; 
+            }
+
+            &.neighbour {
+                background: $success-lighten-3 25%; 
             }
         }
 
@@ -204,11 +208,12 @@ class Cell(Static):
         self.post_message(self.Clicked(self))
 
     def watch_selected(self):
-        self.app.notify(str(self.selected))
-        if self.selected:
+        # self.app.notify(str(self.selected))
+        if self.selected and not self.has_class('Selected'):
             self.add_class('Selected')
         else:
-            self.remove_class('Selected')
+            if self.has_class('Selected'):
+                self.remove_class('Selected')
 
 class SudokuGrid3X3(Grid, can_focus=True):
 
@@ -252,18 +257,55 @@ class SudokuGrid3X3(Grid, can_focus=True):
         cell.selected = True
         self.selected_cell = cell
 
+    def select_neighbours(self):
+        count = 0
+        for cell in self.neighbour_cells():
+            count += 1
+            cell.add_class("neighbour")
+        self.app.notify(str(count))
+
+    def deselect_neighbours(self):
+        for cell in self.neighbour_cells():
+            cell.remove_class("neighbour")
+
+    def neighbour_cells(self):
+        row = self.selected_cell.row // 3 * 3
+        col = self.selected_cell.col // 3 * 3
+        return list (
+            [
+                self.cells[i][j]
+                for i in range(row, row + 3)
+                for j in range(col, col + 3)
+                if (i , j) != (self.selected_cell.row, self.selected_cell.col)
+            ]
+            +
+            [
+                self.cells[self.selected_cell.row][j]
+                for j in range(9)
+                if j // 3 != col
+            ]
+            +
+            [
+                self.cells[i][self.selected_cell.col]
+                for i in range(9)
+                if i // 3 != row
+            ]
+        )
+
     def on_cell_clicked(self, event: Cell.Clicked) -> None:
         clicked_cell = event.cell
 
         # Reset the previous selected cell's background if any
         if self.selected_cell and self.selected_cell != clicked_cell:
+            self.deselect_neighbours()
             self.selected_cell.selected = False
 
         # Set the new selected cell's background
         self.select_cell(clicked_cell)
+        self.select_neighbours()
             
                 
-    def on_key(self, event: Key) -> None:
+    async def on_key(self, event: Key) -> None:
         if self.selected_cell:
             new_row, new_col = self.selected_cell.row, self.selected_cell.col
 
@@ -281,16 +323,18 @@ class SudokuGrid3X3(Grid, can_focus=True):
             self.move_selection(new_row, new_col)    
             
 
-
-    def move_selection(self, row: int, col: int) -> None:
+    @work(exclusive=True)
+    async def move_selection(self, row: int, col: int) -> None:
         # Deselect the current cell
         if self.selected_cell:
+            self.deselect_neighbours()
             self.selected_cell.selected = False
 
         # Update the selected cell coordinates
         row, col = row % 9, col % 9
         self.selected_cell = self.cells[row][col]
         self.selected_cell.selected = True
+        self.select_neighbours()
 
 class MyApp(App):
 
