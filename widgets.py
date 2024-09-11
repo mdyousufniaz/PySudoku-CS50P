@@ -179,9 +179,10 @@ class Cell(Static):
             height: 1;
             width: 3;
             text-align: center;
+            color: #0F0;
 
             &.selected {
-                background: $success-darken-3; 
+                background: $surface-lighten-3; 
             }
 
             &.neighbour {
@@ -293,20 +294,23 @@ class SudokuGrid3X3(Grid, can_focus=True):
             cell.add_class('neighbour')
 
 
-    def neighbour_cells(self):
-        row = self.selected_cell.row // 3 * 3
-        col = self.selected_cell.col // 3 * 3
+    def neighbour_cells(self, cell: Cell = None):
+        if cell is None:
+            cell = self.selected_cell
+
+        row = cell.row // 3 * 3
+        col = cell.col // 3 * 3
         return [
                 self.cells[i][j]
                 for i in range(row, row + 3)
                 for j in range(col, col + 3)
-                if (i , j) != (self.selected_cell.row, self.selected_cell.col)
+                if (i , j) != (cell.row, cell.col)
             ] + [
-                self.cells[self.selected_cell.row][j]
+                self.cells[cell.row][j]
                 for j in range(9)
                 if j // 3 * 3 != col
             ] + [
-                self.cells[i][self.selected_cell.col]
+                self.cells[i][cell.col]
                 for i in range(9)
                 if i // 3 * 3 != row
             ]
@@ -325,24 +329,33 @@ class SudokuGrid3X3(Grid, can_focus=True):
                 
     async def on_key(self, event: Key) -> None:
         if self.selected_cell:
-            new_row, new_col = self.selected_cell.row, self.selected_cell.col
-
-            match event.key:
-                case "up":
-                    new_row -= 1
-                case "down":
-                    new_row += 1
-                case "left":
-                    new_col -= 1
-                case "right":
-                    new_col += 1
-                case _ if not self.selected_cell.has_class('.built_in'):
-                    if event.key.isdecimal():
-                        if event.key == '0':
-                            self.app.notify('0 is not an valid input')
-                case _:
-                    ...
-            self.move_selection(new_row, new_col)    
+            if event.key.isdecimal() or event.key == 'backspace':
+                if self.selected_cell.has_class('built-in'):
+                    self.app.notify("This Cell Can not be Modified!")
+                else:
+                    match event.key:
+                        case '0':
+                            self.app.notify('0 is not an valid input!')
+                        case 'backspace':
+                            self.selected_cell.digit = None
+                        case _:
+                            self.selected_cell.digit = int(event.key)
+            else:
+                new_row, new_col = self.selected_cell.row, self.selected_cell.col
+                match event.key:
+                    case "up":
+                        new_row -= 1
+                    case "down":
+                        new_row += 1
+                    case "left":
+                        new_col -= 1
+                    case "right":
+                        new_col += 1
+                    case _:
+                        pass
+                
+                self.move_selection(new_row, new_col) 
+               
             
 
     @work(exclusive=True)
