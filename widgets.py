@@ -7,14 +7,15 @@ from textual.reactive import var
 from textual.timer import Timer
 from textual.app import ComposeResult, App
 from textual import work
-from textual.events import Key, DescendantFocus
-
+from textual.events import Key
 
 from datetime import datetime
 
 from typing import Optional
 
 from time import monotonic
+
+from sudoku import Sudoku
 
 class CenteredButton(Center):
 
@@ -179,12 +180,17 @@ class Cell(Static):
             width: 3;
             text-align: center;
 
-            &.Selected {
+            &.selected {
                 background: $success-darken-3; 
             }
 
             &.neighbour {
-                background: $success-lighten-3 25%; 
+                background: $success-lighten-3 10%; 
+            }
+
+            &.built-in {
+                color: white 50%;
+                text-style: italic;
             }
         }
 
@@ -196,24 +202,35 @@ class Cell(Static):
             super().__init__()
 
     selected: var[bool] = var(False, init=False)
+    digit: var[int] = var(0, init=False)
 
-    def __init__(self, digit: str, row_index: int, col_index: int) -> None:
-        
+    def __init__(self, digit: int | None, row_index: int, col_index: int) -> None:
+        super().__init__()
         self.row: int = row_index
         self.col: int = col_index
-
-        super().__init__(digit)
+        self.digit = digit
+        if self.digit:
+            self.add_class('built-in')
 
     def on_click(self) -> None:
         self.post_message(self.Clicked(self))
 
+    def watch_digit(self):
+        if self.digit:
+            self.update(str(self.digit))
+        else:
+            self.update('')
+
     def watch_selected(self):
         # self.app.notify(str(self.selected))
-        if self.selected and not self.has_class('Selected'):
-            self.add_class('Selected')
+        if self.selected and not self.has_class('selected'):
+            self.add_class('selected')
         else:
-            if self.has_class('Selected'):
-                self.remove_class('Selected')
+            if self.has_class('selected'):
+                self.remove_class('selected')
+
+    def __str__(self):
+        return f"({self.row}, {self.col})"
 
 class SudokuGrid3X3(Grid, can_focus=True):
 
@@ -236,10 +253,16 @@ class SudokuGrid3X3(Grid, can_focus=True):
 
     """
 
+    def __init__(self) -> None:
+        self.puzzle = Sudoku(3).difficulty(0.5).board
+        super().__init__()
+
     def compose(self) -> ComposeResult:
         self.cells = [
-            [Cell(str((row * 9 + col) % 10), row, col) for col in range(9)]
-            for row in range(9)
+            [Cell(digit, row_in, col_in) for col_in, digit in enumerate(row)]
+            for row_in, row in enumerate(self.puzzle)
+            # [Cell(str((row * 9 + col) % 10), row, col) for col in range(9)]
+            # for row in range(9)
         ]
         for row in self.cells:
             yield from row
@@ -258,46 +281,41 @@ class SudokuGrid3X3(Grid, can_focus=True):
         self.selected_cell = cell
 
     def select_neighbours(self):
-        count = 0
-        for cell in self.neighbour_cells():
-            count += 1
-            cell.add_class("neighbour")
-        self.app.notify(str(count))
+        prev_neighbour_cells = set(self.query_children('.neighbour'))
+        curr_neighbour_cells = set(self.neighbour_cells())
+        
+        # Remove the class from cells that are no longer neighbors
+        for cell in (prev_neighbour_cells - curr_neighbour_cells):
+            cell.remove_class('neighbour')
 
-    def deselect_neighbours(self):
-        for cell in self.neighbour_cells():
-            cell.remove_class("neighbour")
+        # Add the class to new neighbor cells
+        for cell in (curr_neighbour_cells - prev_neighbour_cells):
+            cell.add_class('neighbour')
+
 
     def neighbour_cells(self):
         row = self.selected_cell.row // 3 * 3
         col = self.selected_cell.col // 3 * 3
-        return list (
-            [
+        return [
                 self.cells[i][j]
                 for i in range(row, row + 3)
                 for j in range(col, col + 3)
                 if (i , j) != (self.selected_cell.row, self.selected_cell.col)
-            ]
-            +
-            [
+            ] + [
                 self.cells[self.selected_cell.row][j]
                 for j in range(9)
-                if j // 3 != col
-            ]
-            +
-            [
+                if j // 3 * 3 != col
+            ] + [
                 self.cells[i][self.selected_cell.col]
                 for i in range(9)
-                if i // 3 != row
+                if i // 3 * 3 != row
             ]
-        )
 
     def on_cell_clicked(self, event: Cell.Clicked) -> None:
         clicked_cell = event.cell
 
         # Reset the previous selected cell's background if any
         if self.selected_cell and self.selected_cell != clicked_cell:
-            self.deselect_neighbours()
             self.selected_cell.selected = False
 
         # Set the new selected cell's background
@@ -318,6 +336,10 @@ class SudokuGrid3X3(Grid, can_focus=True):
                     new_col -= 1
                 case "right":
                     new_col += 1
+                case _ if not self.selected_cell.has_class('.built_in'):
+                    if event.key.isdecimal():
+                        if event.key == '0':
+                            self.app.notify('0 is not an valid input')
                 case _:
                     ...
             self.move_selection(new_row, new_col)    
@@ -327,7 +349,6 @@ class SudokuGrid3X3(Grid, can_focus=True):
     async def move_selection(self, row: int, col: int) -> None:
         # Deselect the current cell
         if self.selected_cell:
-            self.deselect_neighbours()
             self.selected_cell.selected = False
 
         # Update the selected cell coordinates
