@@ -193,6 +193,9 @@ class Cell(Static):
                 color: white 50%;
                 text-style: italic;
             }
+            &.error {
+                color: red;
+            }
         }
 
     """
@@ -314,6 +317,26 @@ class SudokuGrid3X3(Grid, can_focus=True):
                 for i in range(9)
                 if i // 3 * 3 != row
             ]
+    def has_conflict_cells(self, Cell):
+        for cell in self.neighbour_cells(Cell):
+            if Cell.digit == cell.digit:
+                return True
+        
+        return False
+    	
+    def check_neighbours(self):
+        if self.selected_cell.digit:
+            for cell in self.neighbour_cells():
+                if self.selected_cell.digit == cell.digit:
+                    if not cell.has_class('error'):
+                        cell.add_class('error')
+                    if not self.selected_cell.has_class('error'):
+                        self.selected_cell.add_class('error')
+                else:
+                    if cell.has_class('error') and not self.has_conflict_cells(cell):
+                        cell.remove_class('error')
+        else:
+            ... 
 
     def on_cell_clicked(self, event: Cell.Clicked) -> None:
         clicked_cell = event.cell
@@ -335,11 +358,12 @@ class SudokuGrid3X3(Grid, can_focus=True):
                 else:
                     match event.key:
                         case '0':
-                            self.app.notify('0 is not an valid input!')
+                            self.app.notify('0 is not a valid input!')
                         case 'backspace':
                             self.selected_cell.digit = None
                         case _:
                             self.selected_cell.digit = int(event.key)
+                            self.check_neighbours()
             else:
                 new_row, new_col = self.selected_cell.row, self.selected_cell.col
                 match event.key:
